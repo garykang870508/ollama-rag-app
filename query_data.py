@@ -1,5 +1,5 @@
 import argparse
-from langchain.vectorstores.chroma import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain.prompts import ChatPromptTemplate
 from langchain_community.llms.ollama import Ollama
 
@@ -16,7 +16,6 @@ Answer the question based only on the following context:
 
 Answer the question based on the above context: {question}
 """
-
 
 def main():
     # Create CLI.
@@ -48,6 +47,35 @@ def query_rag(query_text: str):
     print(formatted_response)
     return response_text
 
+def handle_conversation():
+    context = ""
+    print("Welcome to join the Eligibility ChatBot!")
+
+    embedding_function = get_embedding_function()
+    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
+
+    prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+
+    model = Ollama(model="llama3")
+
+    # chain = prompt_template | model
+
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() == "exit":
+            break
+
+        db_results = db.similarity_search_with_score(user_input, k=1)
+        context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in db_results])
+        prompt = prompt_template.format(context=context_text, question=user_input)
+        # print(prompt)
+        response_text = model.invoke(prompt)
+
+        sources = [doc.metadata.get("id", None) for doc, _score in db_results]
+        formatted_response = f"Response: {response_text}\nSources: {sources}"
+        print(formatted_response)
+        context += f"\nUser: {user_input}\nAI: {response_text}"
+
 
 if __name__ == "__main__":
-    main()
+    handle_conversation()
